@@ -1,5 +1,5 @@
-Step 1: Powerwash Pixelbook and enable developer mode. 
-
+Step 1: Powerwash Pixelbook and enable developer mode. Enable debugging on the very first opening screen (it's a small little link in the middle of the screen). To do this you click it, set the root password. Then you open uo the dev command line with ctrl+alt+refresh button (the one two over from escape). Follow the prompts on this screen to log in as root (with the password you just created) and set the devpasswd for chromeos.
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 Step 2: Follow directions posted here if you want Kali: https://www.peerlyst.com/posts/how-to-turn-your-pixelbook-into-a-pentestbook-archzilon-eshun-davies
 What I did was follow them exactly, but it didn't work so well for me. I finally ended up leaving my debian 9 stretch container in "/etc/apt/sources.list" as-is and not commenting out the repository lines.
 I also opted out of steps 8 and 9, so the instrustions I used are as follows:
@@ -13,9 +13,8 @@ I also opted out of steps 8 and 9, so the instrustions I used are as follows:
   Note: I also had to run "gpg --keyserver pgpkeys.mit.edu --recv-key  ED444FF07D8D0BF6" (substitute the key noted in error code for this part, but mine was this)
   I also had to run this after "gpg -a --export ED444FF07D8D0BF6 | sudo apt-key add -"
   There was another error with a google api public key message as well. I literally just copy any error message I get from the terminal into a google search and find what someone else did to resolve the same error.
-  
 Okay, now the Kali repo is installed.
-
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 Next, I installed my favorite Kali applications. This list will always be growing and changing, and I know I'll forget some on the first post of this:
 -nmap
 -metasploit
@@ -37,15 +36,14 @@ Next, I installed my favorite Kali applications. This list will always be growin
 
 I was able to get all of these working, and then some with a little bit of tweaking. There are some of the above that require quite a few dependencies.
 For instance, openvas took me to 6 other packages because I was able to get it up and going. And it didn't automatically load up into the proper page. I have to manually navigate to https://127.0.0.1:9392/ to sign in after entering sudo openvas-start.
-
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 Now for the really hard part. Getting the hackthebox vpn server working. This took me a week to figure out completely. I got it working in the chroot environment with an install of Kali via crouton at first. But I could not get openvas or half of my other services to work in the chroot because of a lack of systemctl.
 The guide I used to get it working in th chroot was this one: https://github.com/kathleenfrench/htb. An amazing and in-depth approach to the task. This is what finally worked for me because I had a few things setup differently than that user did:
 Step 1- ctrl+alt+t to open terminal
 Step 2- type shell
 Step 3- type cd /
 Step 4- edit iptables 
-	sudo iptables -I INPUT -p tcp --dport 1234 -j ACCEPT
-	
+	sudo iptables -I INPUT -p tcp --dport 1234 -j ACCEPT	
 To list:
 	sudo iptables -L INPUT --line-numbers
 
@@ -55,15 +53,10 @@ Step 6- sudo stop shill
 	sudo start shill BLACKLISTED_DEVICES=tun0
 Step 6- type sudo enter-chroot -n kali_xfce4 if can’t remember name, cd to: /mnt/stateful_partition/crouton/chroots    
 Step 7- Make sure that you’re in the working dir with the .ovpn file
-Step 8- type sudo openvpn --mktun --dev tun0
-	    git
+Step 8- type sudo openvpn --mktun --dev tun0   
 Step 9- type sudo enter-chroot -n [name of chroot] -t xfce -
 
-
-
-Script for making it work in chroot
-
-First, on your chromebook itself (not in a chroot) make a small script to tell the shill service not to kill tun0:
+Now on your chromebook itself (not in a chroot) make a small script to tell the shill service not to kill tun0:
 sudo echo "
 #!/bin/bash
 #Allows the tun0 device to function
@@ -72,48 +65,41 @@ sudo start shill BLACKLISTED_DEVICES=tun0" > /usr/local/bin/shill
 chmod +x /usr/local/bin/shill
 
 Next, create this script within your chroot. Be sure to modify the environment variables to suit your setup.
-#!/bin/bash
 
+#!/bin/bash
 CONF_DIR="/path/to/directory/openvpn/config/is/in"
 CONF_FILE="FILENAME_OF_OVPN_FILE"
 NAMESERVER="IP_OF_DNS_SERVER_YOU_WANT_TO_USE"
 SEARCH="DNS_SUFFIX_YOU_WANT_TO_USE"
-
 cd "$CONF_DIR"
-
 # Add google DNS on top of current ones, since openvpn command does not do it
 sudo sed -i "1s/^/# new DNS\nsearch $SEARCH\nnameserver $NAMESERVER\n# old DNS\n/" /etc/resolv.conf
-
 sudo openvpn --config "$CONF_FILE" --dev tun0
-
 # When ctrl-c is hit remove tun0 and cleanup the DNS
 sudo openvpn --rmtun --dev tun0
 sudo sed -i '/# new DNS/,/# old DNS/d' /etc/resolv.conf
 trap 2
-Voila, we now have openvpn working inside our chroots again.
 
 
-
-
-
-
+Voila, we now have openvpn working inside our chroot.
+---------------------------------------------------------------------------------------------------------
 And now I am not even running in a chroot anymore so my directions differ quite a bit.
 I still followed steps 1-4 of that tutorial:
-  Step 1- ctrl+alt+t to open terminal
-Step 2- type shell
-Step 3- type cd /
-Step 4- edit iptables 
+        Step 1- ctrl+alt+t to open terminal
+	Step 2- type shell
+	Step 3- type cd /
+	Step 4- edit iptables 
 	sudo iptables -I INPUT -p tcp --dport 1234 -j ACCEPT
-	
-To list:
+	sudo iptables -I INPUT -p udp --dport 1234 -j ACCEPT
+	To list:
 	sudo iptables -L INPUT --line-numbers
 
 But my next steps are a little different. Instead of running the step 6 commands and worrying about whether I'm in a chroot for half of the process and not for the other half, I used a script someone else created and saved it in a file called "openvpnfix". I will save this script in a separate file in this folder.
-I saved this script file, made it executable by entering "sudo chmod +x openvpnfix", and copied it into /usr/local/bin as well as my default directory that is loaded when starting my terminal in chromeos by pressing ctrl+alt+t.
+I saved this script file, made it executable by entering "sudo chmod +x openvpnfix", and copied it into /usr/bin as well as my default directory that is loaded when starting my terminal in chromeos by pressing ctrl+alt+t.
 *I also changed my default directory when entering a shell environment to be my home directory by using "cd ~" then "sudo vi .bashrc" and then adding the line "cd ~" to that file. Once I restarted, my shell started in the home/user directory exactly as I wanted it to.
-So now I have my .ovpn config file named "skollr34p3r.ovpn" and my script file to get the vpn setup stuff going named "openvpnfix" both installed in the /usr/local/bin directories. This should enable them to be used anywhere on the system, but I also have them in the directory that loads automatically as soon as I use ctrl+alt+t and then type "shell" to enter a command prompt in chrome os.
+So now I have my .ovpn config file named "skollr34p3r.ovpn" and my script file to get the vpn setup stuff going named "openvpnfix" both installed in the /usr/bin directories. This should enable them to be used anywhere on the system, but I also have them in the directory that loads automatically as soon as I use ctrl+alt+t and then type "shell" to enter a command prompt in chrome os.
 
-Now anytime I want to use the openvpn config file, I need only run "sudo ./openvpnfix" and "sudo openvpn skollr34p3er.ovpn". It starts everythign I need and then I am using my openvpn for hackthebox and am able to open up the machine I want to access via the IP given in hackthebox. 
+Now anytime I want to use the openvpn config file, I need only run "sudo ./openvpnfix" since I added "sudo openvpn --config skollr34p3r.ovpn --dev tun0" to my script file. I am using my openvpn for hackthebox and am able to open up the machine I want to access via the IP given in hackthebox. 
 This gives me access to it in my regular debian/kali native chromeos terminal app, as well as burp suite, and all other apps installed on the pixelbook. 
 
 I'm going to try and tweak this a little bit over time and keep it updated with what I do on my pixelbook, and any successes I have with turning this into a decent pentesting notebook, but for now this is the archive of most of my steps. Thanks for reading!
